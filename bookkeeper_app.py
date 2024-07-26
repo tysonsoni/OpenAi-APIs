@@ -1,42 +1,152 @@
 import streamlit as st
 from PIL import Image
+import json
+import io
+import base64
+import requests
+import pandas as pd
+import smtplib
+import ssl
+from email import encoders
+from email.mime.base import MIMEBase
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 
 
-def process_images(images, app_password):
-    # This function should contain the logic to process images and send them to OpenAI and email.
-    # For now, let's assume it returns a string output.
-    return f"{len(images)} images processed and sent to OpenAI and email."
+def process_images(image_list, app_password_input, bar):
+    app_password = st.secrets["app_password"]
+    if app_password_input == app_password:
+        counter = 1
+        with open('output_columns.json') as f:
+            output_columns = json.load(f)
+        out_df = pd.DataFrame(columns=output_columns)
+        OPENAI_API_KEY = st.secrets["OPENAI_API_KEY"]
+        email = st.secrets["email"]
+        email_password = st.secrets["email_password"]
+
+        for image in image_list:
+            try:
+                bar.progress(counter / len(image_list))
+                buffered = io.BytesIO()
+                image.save(buffered, format="JPEG")
+                image_base64 = base64.b64encode(buffered.getvalue()).decode("utf-8")
+
+                headers = {
+                    "Content-Type": "application/json",
+                    "Authorization": f"Bearer {OPENAI_API_KEY}"
+                }
+                payload = {
+                    "model": "gpt-4o",
+                    "messages": [
+                        {
+                            "role": "user",
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": """
+                        Wie lautet der Unternehmensname, der Gesamtbetrag und das Datum in der folgenden Rechnung? 
+                        Das Datum soll das Format TTMM haben.
+                        Der Gesamtbetrag soll ein Komma zur Abtrennung von Euro und Cent haben.
+                        Gebe mir die Antwort in folgender Struktur:
+                        {
+                            "Unternehmensname" : 'String',
+                            "Gesamtbetrag" : 'String',
+                            "Datum" : 'String'
+                        }
+                        """
+                                },
+                                {
+                                    "type": "image_url",
+                                    "image_url": {
+                                        "url": f"data:image/jpeg;base64,{image_base64}"
+                                        # "url": image_base64
+                                    }
+                                }
+                            ]
+                        }
+                    ],
+                    "max_tokens": 300
+                }
+                response = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=payload)
+                resp = json.loads(response.json()['choices'][0]['message']['content'])
+
+                booking = {
+                    "Umsatz (ohne Soll/Haben-Kz)": resp["Gesamtbetrag"],
+                    "Soll/Haben-Kennzeichen": "H",
+                    "Konto": 1371,
+                    "Gegenkonto (ohne BU-Schlüssel)": 3300,
+                    "Belegdatum": resp["Datum"],
+                    "Belegfeld 1": counter,
+                    "Buchungstext": resp["Unternehmensname"],
+                    "Festschreibung": 0
+                }
+            except:
+                booking = {
+                    "Umsatz (ohne Soll/Haben-Kz)": "1,00",
+                    "Soll/Haben-Kennzeichen": "H",
+                    "Konto": 1371,
+                    "Gegenkonto (ohne BU-Schlüssel)": 3300,
+                    "Belegdatum": 101,
+                    "Belegfeld 1": counter,
+                    "Buchungstext": "???",
+                    "Festschreibung": 0
+                }
+            booking_df = pd.DataFrame(booking, index=[0])
+            out_df = pd.concat([out_df, booking_df])
+            counter = counter + 1
+
+        subject = "Sending Datev ASCII file"
+        body = "Sending Datev ASCII file"
+        sender_email = email
+        receiver_email = email
+
+        message = MIMEMultipart()
+        message["From"] = sender_email
+        message["To"] = receiver_email
+        message["Subject"] = subject
+        message.attach(MIMEText(body, "plain"))
+
+        buffer = io.StringIO()
+        out_df.to_csv(buffer, index=False)
+        buffer.seek(0)
+        part = MIMEBase("application", "octet-stream")
+        part.set_payload(buffer.getvalue())
+        encoders.encode_base64(part)
+        part.add_header(
+            "Content-Disposition",
+            "attachment; filename= Datev_ASCII_file.csv",
+        )
+        message.attach(part)
+        text = message.as_string()
+
+        context = ssl.create_default_context()
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465, context=context) as server:
+            server.login(sender_email, email_password)
+            server.sendmail(sender_email, receiver_email, text)
+        return out_df
+
+    return "wrong password"
 
 
-# Set up the Streamlit app
-st.title("Image Upload and Processing App")
-
-# Input for app password
+st.title("Bookkeeper App")
 app_password = st.text_input("Enter app password", type="password")
-
-# Placeholder for storing images
 if 'images' not in st.session_state:
     st.session_state['images'] = []
 
-# Image upload
-uploaded_file = st.file_uploader("Upload Images", type=['png', 'jpg', 'jpeg'])
+uploaded_file = st.file_uploader("Upload Images", type=['jpg', 'jpeg'])
 if uploaded_file is not None:
     image = Image.open(uploaded_file)
     st.image(image, caption='Uploaded Image', use_column_width=True)
 
-    # Save image button
     if st.button("Save Image"):
         st.session_state['images'].append(image)
         st.session_state['num_images'] = len(st.session_state['images'])
-
-# Display number of images uploaded
 st.number_input("Number images", value=len(st.session_state['images']), disabled=True)
 
-# Submit button to process images
 if st.button("Send to OpenAI and email"):
     if app_password:
-        output = process_images(st.session_state['images'], app_password)
-        st.text_area("Output", output)
+        bar = st.progress(0)
+        output = process_images(st.session_state['images'], app_password, bar)
+        st.write(output)
     else:
         st.warning("Please enter the app password")
-
