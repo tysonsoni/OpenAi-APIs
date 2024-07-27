@@ -107,7 +107,7 @@ def process_images(image_list, app_password_input, bar):
         message.attach(MIMEText(body, "plain"))
 
         buffer = io.StringIO()
-        out_df.to_csv(buffer, index=False)
+        out_df.to_csv(buffer, encoding='ISO-8859-1', sep=";", index=None)
         buffer.seek(0)
         part = MIMEBase("application", "octet-stream")
         part.set_payload(buffer.getvalue())
