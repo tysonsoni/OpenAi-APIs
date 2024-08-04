@@ -44,14 +44,19 @@ def process_images(image_list, app_password_input, bar):
                                 {
                                     "type": "text",
                                     "text": """
-                        Wie lautet der Unternehmensname, der Gesamtbetrag und das Datum in der folgenden Rechnung? 
+                        Wie lautet der Unternehmensname, der Gesamtbetrag, der Rechnungstyp und das Datum in der folgenden Rechnung? 
                         Das Datum soll das Format TTMM haben.
                         Der Gesamtbetrag soll ein Komma zur Abtrennung von Euro und Cent haben.
+                        Der Rechnungstyp wird durch einen Begriff codiert und bestimmt sich durch folgende Regeln:
+                        - Wenn die Rechnung von einer Tankstelle kommt oder Benzin oder Diesel enthält, verwende den Begriff "Tankstelle" als Rechnungstyp.
+                        - Wenn die Rechnung Floristenbedarf enthält, verwende den Begriff "Floristenbedarf" als Rechnungstyp.
+                        - Verwende in allen anderen Fällen den Begriff "Rest" als Rechnungstyp.
                         Gebe mir die Antwort in folgender Struktur:
                         {
                             "Unternehmensname" : 'String',
                             "Gesamtbetrag" : 'String',
-                            "Datum" : 'String'
+                            "Datum" : 'String',
+                            "Rechnungstyp" : 'String'
                         }
                         """
                                 },
@@ -74,12 +79,21 @@ def process_images(image_list, app_password_input, bar):
                     "Umsatz (ohne Soll/Haben-Kz)": resp["Gesamtbetrag"],
                     "Soll/Haben-Kennzeichen": "H",
                     "Konto": 1371,
-                    "Gegenkonto (ohne BU-Schlüssel)": 3300,
                     "Belegdatum": resp["Datum"],
                     "Belegfeld 1": counter,
                     "Buchungstext": resp["Unternehmensname"],
                     "Festschreibung": 0
                 }
+                if resp["Rechnungstyp"] == "Tankstelle":
+                    booking["BU-Schlüssel"] = 90
+                    booking["Gegenkonto (ohne BU-Schlüssel)"] = 4530
+                elif resp["Rechnungstyp"] == "Floristenbedarf":
+                    booking["BU-Schlüssel"] = 90
+                    booking["Gegenkonto (ohne BU-Schlüssel)"] = 4980
+                else:
+                    booking["Gegenkonto (ohne BU-Schlüssel)"] = 3300
+
+
             except:
                 booking = {
                     "Umsatz (ohne Soll/Haben-Kz)": "1,00",
@@ -142,6 +156,7 @@ if st.button("Send to OpenAI and email"):
     if app_password:
         bar = st.progress(0)
         output = process_images(st.session_state['images'], app_password, bar)
+        st.session_state['images'] = []
         st.write(output)
     else:
         st.warning("Please enter the app password")
