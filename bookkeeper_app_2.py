@@ -142,7 +142,7 @@ def process_images(image_list, app_password_input, bar):
     return "wrong password"
 
 
-st.title("Bookkeeper App")
+st.title("Bookkeeper App 2")
 app_password = st.text_input("Enter app password", type="password")
 if 'images' not in st.session_state:
     st.session_state['images'] = []
