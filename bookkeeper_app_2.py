@@ -15,6 +15,7 @@ from email.mime.text import MIMEText
 
 def process_images(image_list, app_password_input, bar):
     app_password = st.secrets["app_password"]
+    log_string = ""
     if app_password_input == app_password:
         counter = 1
         with open('output_columns.json') as f:
@@ -74,6 +75,7 @@ def process_images(image_list, app_password_input, bar):
                 }
                 response = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=payload)
                 resp = json.loads(response.json()['choices'][0]['message']['content'])
+                log_string = log_string + str(response) + "\n\n"
 
                 booking = {
                     "Umsatz (ohne Soll/Haben-Kz)": resp["Gesamtbetrag"],
@@ -120,6 +122,7 @@ def process_images(image_list, app_password_input, bar):
         message["Subject"] = subject
         message.attach(MIMEText(body, "plain"))
 
+        # Attach CSV file
         buffer = io.StringIO()
         out_df.to_csv(buffer, encoding='ISO-8859-1', sep=";", index=None)
         buffer.seek(0)
@@ -128,11 +131,21 @@ def process_images(image_list, app_password_input, bar):
         encoders.encode_base64(part)
         part.add_header(
             "Content-Disposition",
-            "attachment; filename= Datev_ASCII_file.csv",
+            "attachment; filename=Datev_ASCII_file.csv",
         )
         message.attach(part)
-        text = message.as_string()
 
+        # Attach log file
+        log_part = MIMEBase("application", "octet-stream")
+        log_part.set_payload(log_string)
+        encoders.encode_base64(log_part)
+        log_part.add_header(
+            "Content-Disposition",
+            "attachment; filename=log.txt",
+        )
+        message.attach(log_part)
+
+        text = message.as_string()
         context = ssl.create_default_context()
         with smtplib.SMTP_SSL("smtp.gmail.com", 465, context=context) as server:
             server.login(sender_email, email_password)
