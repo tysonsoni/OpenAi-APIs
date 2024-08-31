@@ -50,7 +50,7 @@ def process_images(image_list, app_password_input, bar):
                         Der Gesamtbetrag soll ein Komma zur Abtrennung von Euro und Cent haben.
                         Der Rechnungstyp wird durch einen Begriff codiert und bestimmt sich durch folgende Regeln:
                         - Wenn die Rechnung von einer Tankstelle kommt oder Benzin oder Diesel enthält, verwende den Begriff "Tankstelle" als Rechnungstyp.
-                        - Wenn die Rechnung Floristenbedarf enthält, verwende den Begriff "Floristenbedarf" als Rechnungstyp.
+                        - Wenn die Rechnung das Wort Floristenbedarf enthält, verwende den Begriff "Floristenbedarf" als Rechnungstyp.
                         - Verwende in allen anderen Fällen den Begriff "Rest" als Rechnungstyp.
                         Gebe mir die Antwort in folgender Struktur:
                         {
@@ -75,7 +75,7 @@ def process_images(image_list, app_password_input, bar):
                 }
                 response = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=payload)
                 resp = json.loads(response.json()['choices'][0]['message']['content'])
-                log_string = log_string + str(response) + "\n\n"
+                log_string = log_string + str(response.json()) + "\n\n"
 
                 booking = {
                     "Umsatz (ohne Soll/Haben-Kz)": resp["Gesamtbetrag"],
