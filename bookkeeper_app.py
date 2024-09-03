@@ -15,6 +15,7 @@ from email.mime.text import MIMEText
 
 def process_images(image_list, app_password_input, bar):
     app_password = st.secrets["app_password"]
+    log_string = ""
     if app_password_input == app_password:
         counter = 1
         with open('output_columns.json') as f:
@@ -44,16 +45,21 @@ def process_images(image_list, app_password_input, bar):
                                 {
                                     "type": "text",
                                     "text": """
-                        Wie lautet der Unternehmensname, der Gesamtbetrag und das Datum in der folgenden Rechnung? 
-                        Das Datum soll das Format TTMM haben.
-                        Der Gesamtbetrag soll ein Komma zur Abtrennung von Euro und Cent haben.
-                        Gebe mir die Antwort in folgender Struktur:
-                        {
-                            "Unternehmensname" : 'String',
-                            "Gesamtbetrag" : 'String',
-                            "Datum" : 'String'
-                        }
-                        """
+                                    Wie lautet der Unternehmensname, der Gesamtbetrag, der Rechnungstyp und das Datum in der folgenden Rechnung? 
+                                    Das Datum soll das Format TTMM haben.
+                                    Der Gesamtbetrag soll ein Komma zur Abtrennung von Euro und Cent haben.
+                                    Der Rechnungstyp wird durch einen Begriff codiert und bestimmt sich durch folgende Regeln:
+                                    - Wenn die Rechnung von einer Tankstelle kommt oder Benzin oder Diesel enthält, verwende den Begriff "Tankstelle" als Rechnungstyp.
+                                    - Wenn der Unternehmensname das Wort 'Floristenbedarf' enthält, verwende den Begriff "Floristenbedarf" als Rechnungstyp.
+                                    - Verwende in allen anderen Fällen den Begriff "Rest" als Rechnungstyp.
+                                    Gebe mir die Antwort in folgender Struktur:
+                                    {
+                                        "Unternehmensname" : 'String',
+                                        "Gesamtbetrag" : 'String',
+                                        "Datum" : 'String',
+                                        "Rechnungstyp" : 'String'
+                                    }
+                                    """
                                 },
                                 {
                                     "type": "image_url",
@@ -65,21 +71,52 @@ def process_images(image_list, app_password_input, bar):
                             ]
                         }
                     ],
+                    "response_format": {
+                        "type": "json_schema",
+                        "json_schema": {
+                          "$schema": "http://json-schema.org/draft-07/schema#",
+                          "properties": {
+                            "Unternehmensname": {
+                              "type": "string"
+                            },
+                            "Gesamtbetrag": {
+                              "type": "string"
+                            },
+                            "Datum": {
+                              "type": "string"
+                            },
+                            "Rechnungstyp": {
+                              "type": "string"
+                            }
+                          },
+                          "required": ["Unternehmensname", "Gesamtbetrag", "Datum", "Rechnungstyp"]
+                        }
+                    },
                     "max_tokens": 300
                 }
                 response = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=payload)
                 resp = json.loads(response.json()['choices'][0]['message']['content'])
+                log_string = log_string + str(response.json()) + "\n\n"
 
                 booking = {
                     "Umsatz (ohne Soll/Haben-Kz)": resp["Gesamtbetrag"],
                     "Soll/Haben-Kennzeichen": "H",
                     "Konto": 1371,
-                    "Gegenkonto (ohne BU-Schlüssel)": 3300,
                     "Belegdatum": resp["Datum"],
                     "Belegfeld 1": counter,
                     "Buchungstext": resp["Unternehmensname"],
                     "Festschreibung": 0
                 }
+                if resp["Rechnungstyp"] == "Tankstelle":
+                    booking["BU-Schlüssel"] = 90
+                    booking["Gegenkonto (ohne BU-Schlüssel)"] = 4530
+                elif resp["Rechnungstyp"] == "Floristenbedarf":
+                    booking["BU-Schlüssel"] = 90
+                    booking["Gegenkonto (ohne BU-Schlüssel)"] = 4980
+                else:
+                    booking["Gegenkonto (ohne BU-Schlüssel)"] = 3300
+
+
             except:
                 booking = {
                     "Umsatz (ohne Soll/Haben-Kz)": "1,00",
@@ -106,19 +143,30 @@ def process_images(image_list, app_password_input, bar):
         message["Subject"] = subject
         message.attach(MIMEText(body, "plain"))
 
+        # Attach CSV file
         buffer = io.StringIO()
-        out_df.to_csv(buffer, index=False)
+        out_df.to_csv(buffer, encoding='ISO-8859-1', sep=";", index=None)
         buffer.seek(0)
         part = MIMEBase("application", "octet-stream")
         part.set_payload(buffer.getvalue())
         encoders.encode_base64(part)
         part.add_header(
             "Content-Disposition",
-            "attachment; filename= Datev_ASCII_file.csv",
+            "attachment; filename=Datev_ASCII_file.csv",
         )
         message.attach(part)
-        text = message.as_string()
 
+        # Attach log file
+        log_part = MIMEBase("application", "octet-stream")
+        log_part.set_payload(log_string)
+        encoders.encode_base64(log_part)
+        log_part.add_header(
+            "Content-Disposition",
+            "attachment; filename=log.txt",
+        )
+        message.attach(log_part)
+
+        text = message.as_string()
         context = ssl.create_default_context()
         with smtplib.SMTP_SSL("smtp.gmail.com", 465, context=context) as server:
             server.login(sender_email, email_password)
@@ -133,20 +181,16 @@ app_password = st.text_input("Enter app password", type="password")
 if 'images' not in st.session_state:
     st.session_state['images'] = []
 
-uploaded_file = st.file_uploader("Upload Images", type=['jpg', 'jpeg'])
+uploaded_file = st.file_uploader("Upload Images", type=['jpg', 'jpeg'], accept_multiple_files=True)
 if uploaded_file is not None:
-    image = Image.open(uploaded_file)
-    st.image(image, caption='Uploaded Image', use_column_width=True)
-
-    if st.button("Save Image"):
-        st.session_state['images'].append(image)
-        st.session_state['num_images'] = len(st.session_state['images'])
+    st.session_state['images'] = [Image.open(img) for img in uploaded_file]
 st.number_input("Number images", value=len(st.session_state['images']), disabled=True)
 
 if st.button("Send to OpenAI and email"):
     if app_password:
         bar = st.progress(0)
         output = process_images(st.session_state['images'], app_password, bar)
+        st.session_state['images'] = []
         st.write(output)
     else:
         st.warning("Please enter the app password")
