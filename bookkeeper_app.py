@@ -37,7 +37,7 @@ def process_images(image_list, app_password_input, bar):
                     "Authorization": f"Bearer {OPENAI_API_KEY}"
                 }
                 payload = {
-                    "model": "gpt-4o",
+                    "model": "gpt-4o-2024-08-06",
                     "messages": [
                         {
                             "role": "user",
@@ -74,22 +74,28 @@ def process_images(image_list, app_password_input, bar):
                     "response_format": {
                         "type": "json_schema",
                         "json_schema": {
-                          "$schema": "http://json-schema.org/draft-07/schema#",
-                          "properties": {
-                            "Unternehmensname": {
-                              "type": "string"
-                            },
-                            "Gesamtbetrag": {
-                              "type": "string"
-                            },
-                            "Datum": {
-                              "type": "string"
-                            },
-                            "Rechnungstyp": {
-                              "type": "string"
+                            "name": "response",
+                            "strict": True,
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "Unternehmensname": {
+                                        "type": "string"
+                                    },
+                                    "Gesamtbetrag": {
+                                        "type": "string"
+                                    },
+                                    "Datum": {
+                                        "type": "string"
+                                    },
+                                    "Rechnungstyp": {
+                                        "type": "string"
+                                    }
+                                },
+                                "required": ["Unternehmensname", "Gesamtbetrag", "Datum", "Rechnungstyp"],
+                                "additionalProperties": False
                             }
-                          },
-                          "required": ["Unternehmensname", "Gesamtbetrag", "Datum", "Rechnungstyp"]
+
                         }
                     },
                     "max_tokens": 300
