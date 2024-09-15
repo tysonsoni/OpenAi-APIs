@@ -75,7 +75,7 @@ def process_images(image_list, app_password_input, bar):
                 }
                 response = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=payload)
                 resp = json.loads(response.json()['choices'][0]['message']['content'])
-                log_string = log_string + str(response.json()) + "\n\n"
+                log_string = log_string + str(response.json()) + "\n\n" + str(image) + "\n\n"
 
                 booking = {
                     "Umsatz (ohne Soll/Haben-Kz)": resp["Gesamtbetrag"],
@@ -96,7 +96,8 @@ def process_images(image_list, app_password_input, bar):
                     booking["Gegenkonto (ohne BU-Schlüssel)"] = 3300
 
 
-            except:
+            except Exception as error:
+                log_string = log_string + str(error) + "\n\n"  + str(image) + "\n\n"
                 booking = {
                     "Umsatz (ohne Soll/Haben-Kz)": "1,00",
                     "Soll/Haben-Kennzeichen": "H",
