@@ -135,7 +135,7 @@ def process_images(image_list, app_password_input, bar):
                     "Konto": 1371,
                     "Gegenkonto (ohne BU-Schlüssel)": 3300,
                     "Belegdatum": 101,
-                    "Belegfeld 1": 0,
+                    "Belegfeld 1": counter,
                     "Buchungstext": "???",
                     "Festschreibung": 0
                 }
@@ -156,6 +156,7 @@ def process_images(image_list, app_password_input, bar):
 
         # Attach CSV file
         buffer = io.StringIO()
+        out_df.sort_values(by='Belegfeld 1', inplace=True)
         out_df.to_csv(buffer, encoding='ISO-8859-1', sep=";", index=None)
         buffer.seek(0)
         part = MIMEBase("application", "octet-stream")
