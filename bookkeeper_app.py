@@ -45,7 +45,7 @@ def process_images(image_list, app_password_input, bar):
                                 {
                                     "type": "text",
                                     "text": """
-                                    Wie lautet der Unternehmensname, der Gesamtbetrag, der Rechnungstyp und das Datum in der folgenden Rechnung? 
+                                    Wie lautet der Unternehmensname, der Gesamtbetrag, der Rechnungstyp, das Datum und die handschriftlich eingekreiste Zahl in der folgenden Rechnung? 
                                     Das Datum soll das Format TTMM haben.
                                     Der Gesamtbetrag soll ein Komma zur Abtrennung von Euro und Cent haben.
                                     Der Rechnungstyp wird durch einen Begriff codiert und bestimmt sich durch folgende Regeln:
@@ -57,7 +57,8 @@ def process_images(image_list, app_password_input, bar):
                                         "Unternehmensname" : 'String',
                                         "Gesamtbetrag" : 'String',
                                         "Datum" : 'String',
-                                        "Rechnungstyp" : 'String'
+                                        "Rechnungstyp" : 'String',
+                                        "eingekreiste Zahl" : 'Integer'
                                     }
                                     """
                                 },
@@ -90,9 +91,12 @@ def process_images(image_list, app_password_input, bar):
                                     },
                                     "Rechnungstyp": {
                                         "type": "string"
+                                    },
+                                    "eingekreiste Zahl": {
+                                        "type": "integer"
                                     }
                                 },
-                                "required": ["Unternehmensname", "Gesamtbetrag", "Datum", "Rechnungstyp"],
+                                "required": ["Unternehmensname", "Gesamtbetrag", "Datum", "Rechnungstyp", "eingekreiste Zahl"],
                                 "additionalProperties": False
                             }
 
@@ -109,7 +113,7 @@ def process_images(image_list, app_password_input, bar):
                     "Soll/Haben-Kennzeichen": "H",
                     "Konto": 1371,
                     "Belegdatum": resp["Datum"],
-                    "Belegfeld 1": counter,
+                    "Belegfeld 1": resp["eingekreiste Zahl"],
                     "Buchungstext": resp["Unternehmensname"],
                     "Festschreibung": 0
                 }
@@ -123,14 +127,15 @@ def process_images(image_list, app_password_input, bar):
                     booking["Gegenkonto (ohne BU-Schlüssel)"] = 3300
 
 
-            except:
+            except Exception as error:
+                log_string = log_string + str(error) + "\n\n"
                 booking = {
                     "Umsatz (ohne Soll/Haben-Kz)": "1,00",
                     "Soll/Haben-Kennzeichen": "H",
                     "Konto": 1371,
                     "Gegenkonto (ohne BU-Schlüssel)": 3300,
                     "Belegdatum": 101,
-                    "Belegfeld 1": counter,
+                    "Belegfeld 1": 0,
                     "Buchungstext": "???",
                     "Festschreibung": 0
                 }
